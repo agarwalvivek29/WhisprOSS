@@ -257,3 +257,11 @@ WhisprOSS/
 - Use Right Command (⌘) as fallback hotkey for testing
 - Test on multiple monitors if available
 - Verify microphone selection in System Settings → Sound → Input
+
+---
+
+## Git Commit Guidelines
+
+- **Do NOT add co-author lines** to commits (no `Co-Authored-By:` trailers)
+- Use conventional commit format: `type: description`
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`

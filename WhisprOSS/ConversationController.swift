@@ -190,9 +190,14 @@ final class ConversationController: ObservableObject {
     }
 
     func stopAndProcess() async {
-        let transcript = speech.transcript
-        print("📝 Raw transcript from speech: '\(transcript)'")
-        stopRecording()
+        // Wait for final transcription (ensures all words are captured)
+        let transcript = await speech.stopAndWaitForFinal()
+        print("📝 Final transcript from speech: '\(transcript)'")
+
+        isRecording = false
+        #if os(macOS)
+        HUDWindowController.shared.updatePosition()
+        #endif
 
         guard !transcript.isEmpty else {
             print("⚠️ Transcript is empty, nothing to process")
@@ -211,7 +216,6 @@ final class ConversationController: ObservableObject {
                 print("💬 Streaming response from LLM...")
                 for try await token in stream {
                     final.append(token)
-                    // Accumulate tokens silently to avoid spamming logs
                 }
                 print("✅ LLM response complete: '\(final)'")
                 print("📋 Pasting to frontmost app...")
