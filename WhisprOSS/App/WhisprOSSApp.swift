@@ -32,11 +32,11 @@ struct WhisprOSSApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
                 .environmentObject(settings)
                 .environmentObject(controller)
                 .onAppear {
-                    print("📱 ContentView onAppear - checking permissions before installing monitors...")
+                    print("📱 App onAppear - checking permissions before installing monitors...")
 
                     // Check all permissions
                     let hasAccessibility = PermissionsHelper.checkAccessibilityPermissions()
