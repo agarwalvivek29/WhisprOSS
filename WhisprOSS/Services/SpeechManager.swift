@@ -35,7 +35,23 @@ final class SpeechManager: NSObject, ObservableObject {
 
     func startRecording() throws {
         print("🎙️ SpeechManager.startRecording() called")
-        stop() // ensure clean state
+
+        // Ensure clean state with proper cleanup
+        if audioEngine.isRunning {
+            print("⚠️ Audio engine still running, stopping first...")
+            audioEngine.stop()
+        }
+        audioEngine.inputNode.removeTap(onBus: 0)
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognitionRequest?.endAudio()
+        recognitionRequest = nil
+        audioEngine.reset()
+        stopLevelTimer()
+
+        // Small delay to ensure I/O thread fully terminates
+        Thread.sleep(forTimeInterval: 0.05)
+
         transcript = ""
 
         guard let recognizer = speechRecognizer, recognizer.isAvailable else {
