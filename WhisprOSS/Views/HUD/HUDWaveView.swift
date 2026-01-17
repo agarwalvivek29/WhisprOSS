@@ -169,6 +169,7 @@ final class HUDWindowController: NSWindowController {
         panel.ignoresMouseEvents = true
         panel.hidesOnDeactivate = false  // Don't hide when app loses focus
         panel.worksWhenModal = true      // Work even during modal dialogs
+        panel.sharingType = .readWrite   // Allow screen recording to capture HUD
         self.window = panel
 
         let hosting = NSHostingView(rootView: content)
