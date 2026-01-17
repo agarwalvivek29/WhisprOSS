@@ -130,7 +130,7 @@ final class ConversationController: ObservableObject {
             try speech.startRecording()
             bindLevel()
             #if os(macOS)
-            HUDWindowController.shared.show(controller: self, atBottom: true)
+            HUDWindowController.shared.show(controller: self, settings: settings, atBottom: true)
             #endif
             print("🎙️ Recording started")
         } catch {
@@ -154,7 +154,9 @@ final class ConversationController: ObservableObject {
         speech.stop()
         isRecording = false
         #if os(macOS)
-        HUDWindowController.shared.hide()
+        // Don't hide - the HUD stays visible in idle state
+        // Just update position in case we need to re-center
+        HUDWindowController.shared.updatePosition()
         #endif
     }
 
@@ -197,27 +199,34 @@ final class ConversationController: ObservableObject {
             return
         }
 
-        print("💬 Sending to LLM for cleanup...")
-        print("💬 Model: \(settings.llmModel)")
-        print("💬 System prompt: \(settings.buildSystemPrompt())")
+        // Check if LLM processing is enabled
+        if settings.useLLMProcessing {
+            print("[LLM] Processing enabled, sending to LLM...")
+            print("💬 Model: \(settings.llmModel)")
+            print("💬 System prompt: \(settings.buildSystemPrompt())")
 
-        do {
-            var final = ""
-            let stream = try await llm.streamChatCompletion(model: settings.llmModel, messages: messages(from: transcript))
-            print("💬 Streaming response from LLM...")
-            for try await token in stream {
-                final.append(token)
-                // Accumulate tokens silently to avoid spamming logs
+            do {
+                var final = ""
+                let stream = try await llm.streamChatCompletion(model: settings.llmModel, messages: messages(from: transcript))
+                print("💬 Streaming response from LLM...")
+                for try await token in stream {
+                    final.append(token)
+                    // Accumulate tokens silently to avoid spamming logs
+                }
+                print("✅ LLM response complete: '\(final)'")
+                print("📋 Pasting to frontmost app...")
+                pasteToFrontmostApp(final)
+                print("✅ Paste complete!")
+            } catch {
+                print("❌ LLM error: \(error)")
+                print("📋 Fallback: Pasting raw transcript instead...")
+                pasteToFrontmostApp(transcript)
+                print("✅ Fallback paste complete!")
             }
-            print("✅ LLM response complete: '\(final)'")
-            print("📋 Pasting to frontmost app...")
-            pasteToFrontmostApp(final)
-            print("✅ Paste complete!")
-        } catch {
-            print("❌ LLM error: \(error)")
-            print("📋 Fallback: Pasting raw transcript instead...")
+        } else {
+            print("[Direct] LLM disabled, pasting raw transcript")
             pasteToFrontmostApp(transcript)
-            print("✅ Fallback paste complete!")
+            print("✅ Direct paste complete!")
         }
     }
 

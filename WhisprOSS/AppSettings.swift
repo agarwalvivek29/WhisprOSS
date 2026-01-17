@@ -39,6 +39,10 @@ final class AppSettings: ObservableObject {
         didSet { save() }
     }
 
+    @Published var useLLMProcessing: Bool {
+        didSet { save() }
+    }
+
     enum WritingStyle: String, CaseIterable, Codable {
         case casual = "Casual"
         case professional = "Professional"
@@ -69,6 +73,7 @@ final class AppSettings: ObservableObject {
     private static let formalityKey = "formality"
     private static let removeFillerKey = "removeFiller"
     private static let autoFormatKey = "autoFormat"
+    private static let useLLMProcessingKey = "useLLMProcessing"
 
     init() {
         self.liteLLMBaseURL = Self.defaults.string(forKey: Self.baseURLKey) ?? "http://127.0.0.1:4000"
@@ -91,6 +96,7 @@ final class AppSettings: ObservableObject {
 
         self.removeFiller = Self.defaults.bool(forKey: Self.removeFillerKey) || !Self.defaults.dictionaryRepresentation().keys.contains(Self.removeFillerKey)
         self.autoFormat = Self.defaults.bool(forKey: Self.autoFormatKey) || !Self.defaults.dictionaryRepresentation().keys.contains(Self.autoFormatKey)
+        self.useLLMProcessing = Self.defaults.object(forKey: Self.useLLMProcessingKey) as? Bool ?? true
     }
 
     private func save() {
@@ -101,6 +107,7 @@ final class AppSettings: ObservableObject {
         Self.defaults.set(formality.rawValue, forKey: Self.formalityKey)
         Self.defaults.set(removeFiller, forKey: Self.removeFillerKey)
         Self.defaults.set(autoFormat, forKey: Self.autoFormatKey)
+        Self.defaults.set(useLLMProcessing, forKey: Self.useLLMProcessingKey)
     }
 
     func buildSystemPrompt() -> String {
