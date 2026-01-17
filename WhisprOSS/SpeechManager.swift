@@ -39,69 +39,122 @@ final class SpeechManager: NSObject, ObservableObject {
             throw NSError(domain: "SpeechManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Speech recognizer not available"])
         }
 
-        // Check default input device and set it explicitly
         #if os(macOS)
-        var selectedDeviceID: AudioDeviceID = 0
+        // Get the system default input device
+        var defaultDeviceID: AudioDeviceID = 0
         var propertyAddress = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultInputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
         var propertySize = UInt32(MemoryLayout<AudioDeviceID>.size)
-        let getDefaultStatus = AudioObjectGetPropertyData(
+
+        let status = AudioObjectGetPropertyData(
             AudioObjectID(kAudioObjectSystemObject),
             &propertyAddress,
             0,
             nil,
             &propertySize,
-            &selectedDeviceID
+            &defaultDeviceID
         )
 
-        if getDefaultStatus == noErr && selectedDeviceID != 0 {
-            let tempInputNode = audioEngine.inputNode
-            if let audioUnit = tempInputNode.audioUnit {
-                // Stop engine if running
-                if audioEngine.isRunning {
-                    audioEngine.stop()
-                }
+        guard status == noErr, defaultDeviceID != 0 else {
+            print("❌ Failed to get default input device")
+            throw NSError(domain: "SpeechManager", code: 2, userInfo: [NSLocalizedDescriptionKey: "No input device available"])
+        }
 
-                var deviceIDToSet = selectedDeviceID
-                let setStatus = AudioUnitSetProperty(
-                    audioUnit,
-                    kAudioOutputUnitProperty_CurrentDevice,
-                    kAudioUnitScope_Global,
-                    0,
-                    &deviceIDToSet,
-                    UInt32(MemoryLayout<AudioDeviceID>.size)
-                )
-                if setStatus == noErr {
-                    print("✅ Set audio input device (ID: \(selectedDeviceID))")
-                } else {
-                    print("⚠️ Failed to set audio input device (status: \(setStatus))")
-                }
+        // Get device name for logging
+        var deviceName: CFString = "" as CFString
+        var nameSize = UInt32(MemoryLayout<CFString>.size)
+        var nameAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceNameCFString,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectGetPropertyData(defaultDeviceID, &nameAddress, 0, nil, &nameSize, &deviceName)
+        print("🎤 Using input device: \(deviceName) (ID: \(defaultDeviceID))")
 
-                // Reset the audio engine to pick up the device change
-                audioEngine.reset()
+        // Get the device's native sample rate
+        var sampleRate: Float64 = 0
+        var sampleRateSize = UInt32(MemoryLayout<Float64>.size)
+        var sampleRateAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        let sampleRateStatus = AudioObjectGetPropertyData(
+            defaultDeviceID,
+            &sampleRateAddress,
+            0,
+            nil,
+            &sampleRateSize,
+            &sampleRate
+        )
+
+        if sampleRateStatus == noErr && sampleRate > 0 {
+            print("🎤 Device native sample rate: \(Int(sampleRate)) Hz")
+        } else {
+            sampleRate = 48000 // Fallback
+            print("⚠️ Could not get device sample rate, using fallback: \(Int(sampleRate)) Hz")
+        }
+
+        // Stop and reset audio engine to ensure clean state
+        if audioEngine.isRunning {
+            audioEngine.stop()
+        }
+        audioEngine.reset()
+
+        // Set the input device on the audio unit
+        let inputNode = audioEngine.inputNode
+        if let audioUnit = inputNode.audioUnit {
+            var deviceIDToSet = defaultDeviceID
+            let setStatus = AudioUnitSetProperty(
+                audioUnit,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global,
+                0,
+                &deviceIDToSet,
+                UInt32(MemoryLayout<AudioDeviceID>.size)
+            )
+            if setStatus != noErr {
+                print("⚠️ Failed to set audio input device (status: \(setStatus))")
             }
         }
-        #endif
 
+        // Get the format AFTER setting the device - use the hardware format
+        let hardwareFormat = inputNode.inputFormat(forBus: 0)
+        print("✅ Hardware format: \(hardwareFormat.channelCount) ch, \(Int(hardwareFormat.sampleRate)) Hz")
+
+        // Use nil format to let AVAudioEngine handle format conversion automatically
+        // This is more robust for different audio devices (especially Bluetooth)
+        let tapFormat: AVAudioFormat?
+        if hardwareFormat.sampleRate > 0 && hardwareFormat.channelCount > 0 {
+            tapFormat = hardwareFormat
+            print("✅ Using hardware format for tap")
+        } else {
+            tapFormat = nil
+            print("✅ Using automatic format for tap (nil)")
+        }
+        #else
         let inputNode = audioEngine.inputNode
-        let format = inputNode.outputFormat(forBus: 0)
-        print("✅ Audio format: \(format.channelCount) ch, \(Int(format.sampleRate)) Hz")
+        let tapFormat = inputNode.outputFormat(forBus: 0)
+        #endif
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         self.recognitionRequest = request
         print("✅ Recognition request created")
 
+        // Remove any existing tap
         inputNode.removeTap(onBus: 0)
 
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, time in
+        // Install tap with the compatible format
+        inputNode.installTap(onBus: 0, bufferSize: 4096, format: tapFormat) { [weak self] buffer, time in
             self?.recognitionRequest?.append(buffer)
             self?.updateLevel(from: buffer)
         }
-        print("✅ Audio tap installed on input device: \(inputNode.inputFormat(forBus: 0).channelCount) channels")
+        print("✅ Audio tap installed")
 
         audioEngine.prepare()
         try audioEngine.start()
@@ -114,14 +167,13 @@ final class SpeechManager: NSObject, ObservableObject {
                 DispatchQueue.main.async {
                     self?.transcript = text
                 }
-                // Only log final results
                 if result.isFinal {
                     print("🗣️ Final transcript: '\(text)'")
                 }
             }
             if let error = error {
                 print("❌ Recognition error: \(error)")
-                self?.stop()
+                // Don't call stop() here to avoid recursive issues
             }
         }
         print("✅ Recognition started")
@@ -132,12 +184,17 @@ final class SpeechManager: NSObject, ObservableObject {
     func stop() {
         print("🛑 SpeechManager.stop() called")
         print("🛑 Current transcript before stopping: '\(transcript)'")
-        audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
-        recognitionRequest?.endAudio()
+
+        // Stop in the correct order to avoid race conditions
         recognitionTask?.cancel()
-        recognitionRequest = nil
         recognitionTask = nil
+        recognitionRequest?.endAudio()
+        recognitionRequest = nil
+
+        audioEngine.inputNode.removeTap(onBus: 0)
+        audioEngine.stop()
+        audioEngine.reset()
+
         stopLevelTimer()
         print("🛑 Recording stopped. Final transcript: '\(transcript)'")
     }
