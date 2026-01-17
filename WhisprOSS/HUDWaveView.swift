@@ -9,14 +9,14 @@ enum NotchState {
     var width: CGFloat {
         switch self {
         case .idle: return 80
-        case .recording: return 320
+        case .recording: return 160
         }
     }
 
     var height: CGFloat {
         switch self {
         case .idle: return 24
-        case .recording: return 56
+        case .recording: return 28
         }
     }
 }
@@ -95,26 +95,26 @@ struct HUDWaveView: View {
     // MARK: - Recording State Content
 
     private var recordingContent: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 6) {
             // Mic icon
             Image(systemName: "mic.fill")
-                .font(.system(size: 20))
+                .font(.system(size: 12))
                 .foregroundColor(.white)
 
             // Waveform
             WaveformBar(level: controller.level)
-                .frame(height: 24)
+                .frame(height: 12)
 
             // Bolt icon (shown only when LLM processing is disabled)
             if !settings.useLLMProcessing {
                 Image(systemName: "bolt.fill")
-                    .font(.system(size: 16))
+                    .font(.system(size: 10))
                     .foregroundColor(.yellow)
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
     }
 }
 
