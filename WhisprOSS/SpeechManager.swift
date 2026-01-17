@@ -18,6 +18,10 @@ final class SpeechManager: NSObject, ObservableObject {
 
     private var levelTimer: Timer?
 
+    // Continuation for async stop - waits for isFinal
+    private var stopContinuation: CheckedContinuation<String, Never>?
+    private var isWaitingForFinal = false
+
     func requestPermissions() async throws {
         // Permissions are now handled by PermissionsHelper
         // This method is kept for compatibility
@@ -162,18 +166,35 @@ final class SpeechManager: NSObject, ObservableObject {
         print("✅ Audio engine isRunning: \(audioEngine.isRunning)")
 
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
+            guard let self = self else { return }
+
             if let result {
                 let text = result.bestTranscription.formattedString
                 DispatchQueue.main.async {
-                    self?.transcript = text
+                    self.transcript = text
                 }
+
                 if result.isFinal {
                     print("🗣️ Final transcript: '\(text)'")
+                    // Resume continuation if we're waiting for final
+                    if self.isWaitingForFinal {
+                        self.isWaitingForFinal = false
+                        self.stopContinuation?.resume(returning: text)
+                        self.stopContinuation = nil
+                        self.cleanup()
+                    }
                 }
             }
+
             if let error = error {
                 print("❌ Recognition error: \(error)")
-                // Don't call stop() here to avoid recursive issues
+                // Resume continuation with whatever we have
+                if self.isWaitingForFinal {
+                    self.isWaitingForFinal = false
+                    self.stopContinuation?.resume(returning: self.transcript)
+                    self.stopContinuation = nil
+                    self.cleanup()
+                }
             }
         }
         print("✅ Recognition started")
@@ -181,11 +202,52 @@ final class SpeechManager: NSObject, ObservableObject {
         startLevelTimer()
     }
 
-    func stop() {
-        print("🛑 SpeechManager.stop() called")
+    /// Stops recording and waits for the final transcription result
+    /// This ensures all buffered audio is processed and no words are lost
+    func stopAndWaitForFinal() async -> String {
+        print("🛑 SpeechManager.stopAndWaitForFinal() called")
         print("🛑 Current transcript before stopping: '\(transcript)'")
 
-        // Stop in the correct order to avoid race conditions
+        // If not recording, return current transcript
+        guard audioEngine.isRunning else {
+            print("🛑 Audio engine not running, returning current transcript")
+            return transcript
+        }
+
+        return await withCheckedContinuation { continuation in
+            self.stopContinuation = continuation
+            self.isWaitingForFinal = true
+
+            // 1. Stop capturing NEW audio
+            self.audioEngine.inputNode.removeTap(onBus: 0)
+            self.audioEngine.stop()
+            self.stopLevelTimer()
+            print("🛑 Audio capture stopped, waiting for final transcription...")
+
+            // 2. Signal end of audio - recognizer will process remaining buffer
+            //    and eventually call back with isFinal = true
+            self.recognitionRequest?.endAudio()
+
+            // 3. Set a timeout in case isFinal never comes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                guard let self = self, self.isWaitingForFinal else { return }
+                print("⚠️ Timeout waiting for final transcript, using current")
+                self.isWaitingForFinal = false
+                self.stopContinuation?.resume(returning: self.transcript)
+                self.stopContinuation = nil
+                self.cleanup()
+            }
+        }
+    }
+
+    /// Immediately stops recording without waiting for final result
+    /// Use this for cleanup or when you don't need the transcript
+    func stop() {
+        print("🛑 SpeechManager.stop() called (immediate)")
+
+        isWaitingForFinal = false
+        stopContinuation = nil
+
         recognitionTask?.cancel()
         recognitionTask = nil
         recognitionRequest?.endAudio()
@@ -196,7 +258,15 @@ final class SpeechManager: NSObject, ObservableObject {
         audioEngine.reset()
 
         stopLevelTimer()
-        print("🛑 Recording stopped. Final transcript: '\(transcript)'")
+        print("🛑 Recording stopped immediately. Transcript: '\(transcript)'")
+    }
+
+    /// Cleanup after final result received
+    private func cleanup() {
+        print("🧹 Cleaning up recognition resources")
+        recognitionTask = nil
+        recognitionRequest = nil
+        audioEngine.reset()
     }
 
     private func startLevelTimer() {
