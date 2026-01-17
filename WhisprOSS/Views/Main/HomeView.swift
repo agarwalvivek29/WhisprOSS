@@ -17,17 +17,11 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Welcome header
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Welcome back")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-
-                    Text("Press and hold the Fn key to start recording")
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                }
+            VStack(spacing: 24) {
+                // Brand banner
+                BrandHeaderView(style: .banner)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8)
 
                 // Quick stats
                 VStack(alignment: .leading, spacing: 12) {

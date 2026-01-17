@@ -14,26 +14,43 @@ struct WelcomeStepView: View {
         VStack(spacing: 32) {
             Spacer()
 
-            // App icon
-            Image(systemName: "waveform.circle.fill")
-                .font(.system(size: 80))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [.blue, .purple],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+            // App icon with monochrome styling
+            ZStack {
+                Circle()
+                    .fill(Color.primary.opacity(0.05))
+                    .frame(width: 120, height: 120)
+
+                Image(systemName: "waveform.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.primary, .primary.opacity(0.7)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
-                )
+            }
 
-            // Title and tagline
-            VStack(spacing: 8) {
-                Text("Welcome to WhisprOSS")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+            // Title and tagline with stylized brand
+            VStack(spacing: 12) {
+                HStack(spacing: 0) {
+                    Text("Welcome to ")
+                        .font(.largeTitle)
+                        .fontWeight(.medium)
+                    Text("Whispr")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                    Text("OSS")
+                        .font(.largeTitle)
+                        .fontWeight(.light)
+                        .foregroundColor(.secondary)
+                }
 
-                Text("Voice-first dictation for macOS")
-                    .font(.title3)
+                Text("Voice-to-text, always-on dictation, accessibility-first productivity tool")
+                    .font(.body)
                     .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 400)
             }
 
             // Feature highlights
