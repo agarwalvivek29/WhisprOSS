@@ -18,10 +18,41 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .navigationTitle("WhisprOSS")
+        .safeAreaInset(edge: .top) {
+            brandHeader
+        }
         .safeAreaInset(edge: .bottom) {
             statusFooter
         }
+    }
+
+    private var brandHeader: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "waveform.circle.fill")
+                .font(.system(size: 24))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.primary, .primary.opacity(0.7)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 0) {
+                    Text("Whispr")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                    Text("OSS")
+                        .font(.system(size: 16, weight: .light, design: .rounded))
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
     }
 
     private var statusFooter: some View {
