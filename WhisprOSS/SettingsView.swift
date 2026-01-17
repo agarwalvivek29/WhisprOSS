@@ -12,6 +12,24 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section(header: Text("Processing Mode").font(.headline)) {
+                Toggle("Use LLM Processing", isOn: $settings.useLLMProcessing)
+
+                if settings.useLLMProcessing {
+                    Text("Transcribed speech will be cleaned up by an LLM before pasting.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bolt.fill")
+                            .foregroundColor(.yellow)
+                        Text("Direct paste mode: Raw transcription pasted immediately (faster)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
             Section(header: Text("LiteLLM Configuration").font(.headline)) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Base URL")
@@ -37,6 +55,8 @@ struct SettingsView: View {
                         .textFieldStyle(.roundedBorder)
                 }
             }
+            .opacity(settings.useLLMProcessing ? 1.0 : 0.5)
+            .disabled(!settings.useLLMProcessing)
 
             Section(header: Text("Writing Preferences").font(.headline)) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -72,6 +92,8 @@ struct SettingsView: View {
                 Toggle("Remove filler words (um, uh, like, etc.)", isOn: $settings.removeFiller)
                 Toggle("Auto-format punctuation and capitalization", isOn: $settings.autoFormat)
             }
+            .opacity(settings.useLLMProcessing ? 1.0 : 0.5)
+            .disabled(!settings.useLLMProcessing)
 
             Section(header: Text("How to Use").font(.headline)) {
                 VStack(alignment: .leading, spacing: 8) {

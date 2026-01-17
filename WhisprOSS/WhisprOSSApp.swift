@@ -63,6 +63,13 @@ struct WhisprOSSApp: App {
 
                     print("📱 Installing global monitors now...")
                     controller.installGlobalMonitors()
+
+                    #if os(macOS)
+                    // Initialize the always-visible HUD notch
+                    print("📱 Initializing HUD notch...")
+                    HUDWindowController.shared.initialize(controller: controller, settings: settings)
+                    #endif
+
                     print("📱 onAppear complete")
                 }
                 .onChange(of: settings.liteLLMBaseURL) {
