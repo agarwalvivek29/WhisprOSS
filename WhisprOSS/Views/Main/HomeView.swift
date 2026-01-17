@@ -38,10 +38,10 @@ struct HomeView: View {
                         )
 
                         StatCard(
-                            icon: controller.isRecording ? "mic.fill" : "checkmark.circle.fill",
-                            value: controller.isRecording ? "Recording..." : "Ready",
+                            icon: statusIcon,
+                            value: statusText,
                             label: "Status",
-                            iconColor: controller.isRecording ? .red : .green
+                            iconColor: statusColor
                         )
                     }
                 }
@@ -165,6 +165,44 @@ struct HomeView: View {
             permissionCheckTimer = nil
         }
     }
+
+    // MARK: - Status Computed Properties
+
+    private var allPermissionsGranted: Bool {
+        hasAccessibilityPermission && hasMicrophonePermission && hasSpeechRecognitionPermission
+    }
+
+    private var statusIcon: String {
+        if controller.isRecording {
+            return "mic.fill"
+        } else if !allPermissionsGranted {
+            return "exclamationmark.triangle.fill"
+        } else {
+            return "checkmark.circle.fill"
+        }
+    }
+
+    private var statusText: String {
+        if controller.isRecording {
+            return "Recording..."
+        } else if !allPermissionsGranted {
+            return "Setup Required"
+        } else {
+            return "Ready"
+        }
+    }
+
+    private var statusColor: Color {
+        if controller.isRecording {
+            return .red
+        } else if !allPermissionsGranted {
+            return .orange
+        } else {
+            return .green
+        }
+    }
+
+    // MARK: - Permission Helpers
 
     private func checkPermissions() {
         let newAccessibility = PermissionsHelper.checkAccessibilityPermissions()
