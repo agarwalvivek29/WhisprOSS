@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import SwiftData
 import Combine
 #if os(macOS)
 import AppKit
@@ -13,6 +14,7 @@ final class ConversationController: ObservableObject {
     let speech = SpeechManager()
     let llm: LiteLLMClient
     let settings: AppSettings
+    var modelContainer: ModelContainer?
 
     private var globalKeyDownMonitor: Any?
     private var globalKeyUpMonitor: Any?
@@ -169,9 +171,19 @@ final class ConversationController: ObservableObject {
 
     private func pasteToFrontmostApp(_ text: String) {
         #if os(macOS)
+        print("📋 Copying to clipboard: '\(text)'")
         let pb = NSPasteboard.general
         pb.clearContents()
-        pb.setString(text, forType: .string)
+        let success = pb.setString(text, forType: .string)
+        print("📋 Clipboard set success: \(success)")
+
+        // Verify clipboard contents
+        if let clipboardText = pb.string(forType: .string) {
+            print("📋 Clipboard now contains: '\(clipboardText)'")
+        } else {
+            print("📋 WARNING: Clipboard is empty after setting!")
+        }
+
         // Simulate Command+V
         let src = CGEventSource(stateID: .hidSystemState)
         let cmdDown = CGEvent(keyboardEventSource: src, virtualKey: 0x37, keyDown: true) // Command
@@ -204,6 +216,9 @@ final class ConversationController: ObservableObject {
             return
         }
 
+        var processedText = ""
+        var usedLLM = false
+
         // Check if LLM processing is enabled
         if settings.useLLMProcessing {
             print("[LLM] Processing enabled, sending to LLM...")
@@ -211,26 +226,63 @@ final class ConversationController: ObservableObject {
             print("💬 System prompt: \(settings.buildSystemPrompt())")
 
             do {
-                var final = ""
                 let stream = try await llm.streamChatCompletion(model: settings.llmModel, messages: messages(from: transcript))
                 print("💬 Streaming response from LLM...")
                 for try await token in stream {
-                    final.append(token)
+                    processedText.append(token)
                 }
-                print("✅ LLM response complete: '\(final)'")
+                print("✅ LLM response complete: '\(processedText)'")
                 print("📋 Pasting to frontmost app...")
-                pasteToFrontmostApp(final)
+                pasteToFrontmostApp(processedText)
+                usedLLM = true
                 print("✅ Paste complete!")
             } catch {
                 print("❌ LLM error: \(error)")
                 print("📋 Fallback: Pasting raw transcript instead...")
                 pasteToFrontmostApp(transcript)
+                processedText = transcript
                 print("✅ Fallback paste complete!")
             }
         } else {
             print("[Direct] LLM disabled, pasting raw transcript")
             pasteToFrontmostApp(transcript)
+            processedText = transcript
             print("✅ Direct paste complete!")
+        }
+
+        // Save to history database
+        saveToHistory(
+            rawTranscript: transcript,
+            processedText: processedText,
+            usedLLM: usedLLM
+        )
+    }
+
+    private func saveToHistory(rawTranscript: String, processedText: String, usedLLM: Bool) {
+        guard let modelContainer = modelContainer else {
+            print("❌ ModelContainer not set, cannot save to history")
+            return
+        }
+
+        let wordCount = processedText.split(separator: " ").count
+        let entry = TranscriptionEntry(
+            rawTranscript: rawTranscript,
+            processedText: processedText,
+            timestamp: Date(),
+            llmModel: settings.llmModel,
+            writingStyle: settings.writingStyle.rawValue,
+            formality: settings.formality.rawValue,
+            usedLLMProcessing: usedLLM,
+            wordCount: wordCount
+        )
+
+        let context = ModelContext(modelContainer)
+        context.insert(entry)
+        do {
+            try context.save()
+            print("💾 Saved transcription entry")
+        } catch {
+            print("❌ Failed to save to history: \(error)")
         }
     }
 
