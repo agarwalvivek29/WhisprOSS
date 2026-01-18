@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct MainView: View {
     @State private var selectedNavigation: NavigationItem? = .home
@@ -55,4 +56,5 @@ struct MainView: View {
             llm: LiteLLMClient(config: .init(baseURL: URL(string: "http://127.0.0.1:4000")!, apiKey: nil)),
             settings: AppSettings()
         ))
+        .modelContainer(for: TranscriptionEntry.self, inMemory: true)
 }
