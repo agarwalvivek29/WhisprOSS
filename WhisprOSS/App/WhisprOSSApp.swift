@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 #if os(macOS)
 import AppKit
 #endif
@@ -14,6 +15,16 @@ import AppKit
 struct WhisprOSSApp: App {
     @StateObject private var settings: AppSettings
     @StateObject private var controller: ConversationController
+
+    var sharedModelContainer: ModelContainer = {
+        let schema = Schema([TranscriptionEntry.self])
+        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        do {
+            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+        } catch {
+            fatalError("Could not create ModelContainer: \(error)")
+        }
+    }()
 
     init() {
         print("🚀 WhisprOSS initializing...")
@@ -64,6 +75,9 @@ struct WhisprOSSApp: App {
                     print("📱 Installing global monitors now...")
                     controller.installGlobalMonitors()
 
+                    // Pass the model context to the controller
+                    controller.modelContainer = sharedModelContainer
+
                     #if os(macOS)
                     // Initialize the always-visible HUD notch
                     print("📱 Initializing HUD notch...")
@@ -79,6 +93,7 @@ struct WhisprOSSApp: App {
                     updateLLMClient()
                 }
         }
+        .modelContainer(sharedModelContainer)
     }
 
     private func updateLLMClient() {
