@@ -14,14 +14,24 @@ WhisprOSS is a free, open-source alternative to [Wispr Flow](https://wisprflow.a
 - **Full-Screen Support** — Overlay works even over full-screen applications
 - **Multi-Monitor Support** — HUD follows your active screen
 - **Customizable Writing Style** — Choose tone (casual, professional, creative, technical) and formality level
+- **Transcription History** — Browse, search, and revisit past transcriptions with SwiftData persistence
+- **Guided Onboarding** — 4-step setup wizard for permissions and configuration
 
 ## How It Works
 
-1. **Press and hold `Fn` key** to start recording
+1. **Press and hold `Fn` key** to start recording (or Right `⌘` as alternative)
 2. **Speak naturally** — don't worry about "um"s or pauses
-3. **Release `Fn`** — text is transcribed, cleaned up, and pasted
+3. **Release the key** — text is transcribed, cleaned up, and pasted
 
 That's it. No clicking, no copy-paste, no switching windows.
+
+### First Launch
+
+On first launch, you'll be guided through a 4-step onboarding:
+1. **Welcome** — Introduction to WhisprOSS
+2. **Permissions** — Grant Accessibility, Microphone, and Speech Recognition
+3. **Configuration** — Set up your LLM endpoint (optional)
+4. **Completion** — Ready to start dictating
 
 ## Requirements
 
@@ -70,26 +80,91 @@ WhisprOSS can use any OpenAI-compatible API for text cleanup:
 - **Remove Filler Words** — Strip "um", "uh", "like", "you know"
 - **Auto-Format** — Add punctuation and capitalization
 
+### Transcription History
+
+All transcriptions are automatically saved and can be accessed from the History tab:
+- **Search** across raw and processed transcripts
+- **Toggle** between raw speech recognition output and LLM-processed text
+- **Copy** any transcription to clipboard
+- **View metadata** — model used, writing style, formality, word count
+- **Delete** individual entries
+
 ## Architecture
 
 ```
 WhisprOSS/
-├── WhisprOSSApp.swift          # App entry point
-├── ConversationController.swift # Hotkey handling, workflow orchestration
-├── SpeechManager.swift          # Audio recording & transcription
-├── LiteLLMClient.swift          # LLM streaming client
-├── HUDWaveView.swift            # Dynamic notch UI
-├── AppSettings.swift            # User preferences
-└── SettingsView.swift           # Settings UI
+├── App/
+│   ├── WhisprOSSApp.swift              # App entry point with dependency injection
+│   └── RootView.swift                  # Navigation coordinator (onboarding vs main)
+│
+├── Models/
+│   ├── AppSettings.swift               # User preferences (UserDefaults-backed)
+│   ├── TranscriptionEntry.swift        # SwiftData model for history persistence
+│   └── NavigationItem.swift            # Sidebar navigation enum
+│
+├── Services/
+│   ├── ConversationController.swift    # Main orchestrator (hotkey, workflow, paste)
+│   ├── SpeechManager.swift             # AVAudioEngine + SFSpeechRecognizer
+│   ├── LiteLLMClient.swift             # OpenAI-compatible streaming API client
+│   └── PermissionsHelper.swift         # Permission checking & requesting
+│
+├── Views/
+│   ├── Main/
+│   │   ├── MainView.swift              # Navigation split view with sidebar
+│   │   ├── HomeView.swift              # Dashboard with status & instructions
+│   │   ├── HistoryView.swift           # Master-detail transcription list
+│   │   └── SidebarView.swift           # Navigation sidebar
+│   │
+│   ├── Settings/
+│   │   └── SettingsView.swift          # LLM config, writing preferences
+│   │
+│   ├── HUD/
+│   │   ├── HUDWaveView.swift           # Notch UI with idle/recording states
+│   │   └── HUDInstructionsView.swift   # First-launch instructions overlay
+│   │
+│   ├── Components/
+│   │   ├── BrandHeaderView.swift       # Logo and branding
+│   │   ├── StatCard.swift              # Status indicator cards
+│   │   ├── HistoryEntryRow.swift       # List row component
+│   │   └── HistoryDetailView.swift     # Detail panel for transcriptions
+│   │
+│   └── Onboarding/
+│       ├── OnboardingContainerView.swift
+│       ├── WelcomeStepView.swift
+│       ├── PermissionsStepView.swift
+│       ├── ConfigurationStepView.swift
+│       └── CompletionStepView.swift
+│
+└── Assets/
+    └── Assets.xcassets/                # App icon and colors
 ```
+
+### Key Components
+
+| Component | Responsibility |
+|-----------|----------------|
+| **ConversationController** | Detects Fn key via `NSEvent.flagsChanged`, coordinates recording/transcription/paste, saves to history |
+| **SpeechManager** | Manages AVAudioEngine + SFSpeechRecognizer, publishes real-time audio levels for waveform |
+| **LiteLLMClient** | Streams chat completions from any OpenAI-compatible API (SSE parsing) |
+| **AppSettings** | User preferences with dynamic LLM system prompt generation |
+| **HUDWindowController** | Floating NSPanel with Dynamic Island-style notch, multi-monitor aware |
+
+### Data Persistence
+
+| What | Where |
+|------|-------|
+| **App Settings** | UserDefaults (LLM URL, API key, writing style, formality, etc.) |
+| **Transcription History** | SwiftData (`TranscriptionEntry` with raw/processed text, timestamps, metadata) |
 
 ## Roadmap
 
+- [x] Transcription history with persistence
+- [x] Guided onboarding flow
 - [ ] Custom hotkey configuration
 - [ ] App-specific tone presets
 - [ ] Offline LLM support (llama.cpp, MLX)
 - [ ] Command mode ("open Safari", "new email")
-- [ ] History and undo
+- [ ] Undo last transcription
 - [ ] Custom vocabulary/corrections
 - [ ] iOS companion app
 
@@ -100,6 +175,17 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 This project is licensed under the Apache License 2.0 — see the [LICENSE](LICENSE) file for details.
+
+## Technologies
+
+- **SwiftUI** — Declarative UI framework
+- **Combine** — Reactive state management (ObservableObject, @Published)
+- **SwiftData** — On-device persistence for transcription history
+- **AVFoundation** — Audio input via AVAudioEngine
+- **Speech** — On-device transcription via SFSpeechRecognizer
+- **AppKit** — NSPanel for HUD, NSEvent for hotkey detection
+- **CoreAudio** — Audio device selection
+- **Accelerate** — DSP for RMS waveform calculation
 
 ## Acknowledgments
 
